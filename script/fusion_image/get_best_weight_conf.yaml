@@ -1,0 +1,5 @@
+argo_path: .\0_POC\argo_workspace\
+Image_A: .\hoge\A\
+Image_B: .\hoge\B\
+Image_C: .\hoge\C\
+Image_D: .\hoge\D\

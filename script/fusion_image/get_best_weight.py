@@ -10,6 +10,8 @@ import subprocess
 import pandas as pd
 import shutil
 import yaml
+import copy
+import itertools
 
 #yamlファイルを読み込む関数
 def load_yaml(yaml_path, encoding="utf-8"):
@@ -38,7 +40,7 @@ def load_file(folder, fmt="png"):
         return images
      
 #重み付き平均化画像の生成関数
-def make_average_image(weight_list, image_type_num, first_image_dir, first_output_dir, label_list, for_yama=False):
+def make_average_image(weight_list, image_type_num, first_image_dir, first_output_dir, label_list, yama_flag=False):
     len_weight_list = len(weight_list)
     if first_output_dir[-1] != "/":
         first_output_dir += "/"
@@ -59,7 +61,7 @@ def make_average_image(weight_list, image_type_num, first_image_dir, first_outpu
                     cnt += 1
                 else:
                     average_image += img*weight_list[w_i][cnt]  
-                    if for_yama == True:
+                    if yama_flag:
                         cv2.imwrite(output_dir + '/average_image' + str(image_num).zfill(3) + "_" + label + '.png', average_image)
                     else:
                         cv2.imwrite(output_dir + '/average_image' + str(image_num).zfill(3) + '.png', average_image)
@@ -97,57 +99,14 @@ def save_good_eval_asCSV(csv_files,top_num, header_rows, output_dir):
     good_eval_df.to_csv(output_dir + 'good_evaluation_values.csv', header=False, index=False, encoding="s-jis")
 
 
-#4つの全パターンの重み値を返す関数
-#これは4つのパターンに限定されているが、image_type_numを変えても対応するようにしたい→get_weight_listで実装完了
-#使ってないから消してもいい
-def get_all_4_weight_values(image_type_num, resolution):
-    WEIGHT_LIST = []
-
-    list = [num for num in range(0,11,int(resolution*10))]
-
-    for i in list:
-        for j in list:
-            for p in list:
-                for q in list:
-                    w = [i, j, p, q]
-                    if sum(w)==10:
-                        WEIGHT_LIST.append(w)
-
-    normalize_list = [[num/10 for num in WEIGHT_LIST[i]] for i in range(len(WEIGHT_LIST))]
-    #print(normalize_list)
-    
-    return normalize_list
-
-#5つの全パターンの重み値を返す関数
-#使ってないから消してもいい
-def get_all_5_weight_values(image_type_num, resolution):
-    WEIGHT_LIST = []
-
-    list = [num for num in range(0,11,int(resolution*10))]
-
-    for i in list:
-        for j in list:
-            for p in list:
-                for q in list:
-                    for r in list:
-                        w = [i, j, p, q, r]
-                        if sum(w)==10:
-                            WEIGHT_LIST.append(w)
-
-    normalize_list = [[num/10 for num in WEIGHT_LIST[i]] for i in range(len(WEIGHT_LIST))]
-    #print(normalize_list)
-    
-    return normalize_list
-
 #一番強いやつ
-def get_best_weight(weight_list, label_list, image_type_num, yaml_dir, output_dir, split, header_rows, header_cols, top_num, csv_output_dir):
+def get_best_weight(argo_path, weight_list, label_list, image_type_num, yaml_dict, output_dir, split, header_rows, header_cols, top_num, csv_output_dir):
     
     once = True
     temp_dir_name = "temp_ave"
     temp_dir = "./" + temp_dir_name + "/"
 
-    image_dir, image_label_list, argo_path = summarize_images(yaml_dir, label_list, image_type_num)
-
+    image_dir, image_label_list = summarize_images(yaml_dict, label_list, image_type_num)
     if temp_dir_name in os.listdir(path='./'):
         shutil.rmtree(temp_dir)
 
@@ -185,7 +144,7 @@ def get_best_weight(weight_list, label_list, image_type_num, yaml_dir, output_di
         print("learn and test_ok are ready.\n")
         
         #argoの実行
-        print("learning...")
+        print("learning...\n")
         subprocess.run('run.bat', cwd=argo_path, shell=True)
         
         #以下数行で重み情報を付する
@@ -222,7 +181,6 @@ def get_best_weight(weight_list, label_list, image_type_num, yaml_dir, output_di
         del image_list
         print("progress : {}/{}\n" .format(progress+1,len(weight_list)))
     
-    shutil.rmtree(image_dir)
     #evaluation_valueを降順にソートしたデータフレームの生成
     evaluation_values_df = only_good_eval_df.iloc[:, :].sort_values(by='c01', ascending=False)
     #header個所のみのdfと結合
@@ -230,30 +188,13 @@ def get_best_weight(weight_list, label_list, image_type_num, yaml_dir, output_di
     good_eval_df.to_csv(csv_output_dir + 'good_evaluation_values.csv', header=False, index=False, encoding="s-jis")
     #求められた最適重み画像を画像出力フォルダに生成する。
     best_weight = evaluation_values_df.iloc[0,-1]
-    best_weight = best_weight.replace('[', '').replace(']', '').split()
+    best_weight = best_weight.replace('(', '').replace(')', '').replace(',', '').split()
+    #各ラベルフォルダがなかった時は生成する
+    if not os.listdir(path=output_dir):
+        for label in label_list:
+            os.makedirs(output_dir + label)
     make_average_image([np.array([float(w) for w in best_weight],dtype=np.float64)], image_type_num, image_dir, output_dir, label_list)
-
-
-#再帰的に全重み値を導出する関数
-def func(weight, resolution, n=0):
-    global count
-    for i,w in enumerate(weight):
-        if np.allclose(w, 0):
-            weight[i] = 0.0       
-    if np.allclose(weight.sum(), 1):
-        #print(weight)
-        for w in weight:
-            temp_list.append(w)        
-        weight[n] -= resolution
-        count = count+1
-        #print(weight_list)
-        return
-    else:
-        a=n
-        for i in range(a,len(weight)):
-            weight[i] += resolution
-            func(weight, resolution, i)
-        weight[a] -= resolution
+    shutil.rmtree(image_dir)
 
 #小数が雑(仕様上しょうがないらしい)なリストをキレイにする関数
 def convert_correct_num(num_list):
@@ -262,34 +203,70 @@ def convert_correct_num(num_list):
         correct_list.append(float(format(num, '.2f')))
     return correct_list
     
-#1次元リストを適切な2次元の行列の形に直す関数
-def conver_weight_list(num_list, image_type_num):
-    length = len(num_list)/image_type_num
-    length = int(length)
-    weight_list = np.zeros([length, image_type_num])
-    c = 0
-    for i in range(length):
-        for j in range(image_type_num):
-            weight_list[i][j] = num_list[c]
-            c += 1
-    return weight_list
-
-#分解能と画像種類数を入力するとそれに対する重み値のリストを返す関数
-def get_weight_list(resolution, image_type_num):
-    global temp_list
-    global count
-    temp_list = []
-    count = 0
-
-    weight = np.zeros([image_type_num])
-    weight_list = []
-
-    func(weight,resolution)
-
-    return conver_weight_list(convert_correct_num(temp_list), image_type_num)
+#yamlファイルから必要な情報をとってくる関数
+def get_data_from_yaml(yaml_dir):
+    yaml_dict = load_yaml(yaml_dir)
+    
+    argo_path = yaml_dict.pop('argo_path')
+    minmax_values = yaml_dict.pop('minmax_values')
+    if type(minmax_values[0]['min_value']) is float and type(minmax_values[0]['max_value']) is float:
+        if minmax_values[0]['min_value'] > minmax_values[0]['max_value']:
+            print("'minmax_values'の大小関係が不正です。")
+            return
+    else:
+        print("'minmax_values'にはFloat型を渡してください。")
+        return
+    image_type_num = yaml_dict.pop('image_type_num')
+    if type(image_type_num) is int:
+        pass
+    else:
+        print("'image_type_num'にはInt型を渡してください。")
+        return
+    output_dir = yaml_dict.pop('best_image_output_path') 
+    yama_flag = yaml_dict.pop('for_yama')
+    if yama_flag:
+        pass
+    elif not yama_flag:
+        pass
+    else:
+        print("'for_yama'にはBool値を渡してください。")
+        return
+    label_list = yaml_dict.pop('label_list')
+    if type(label_list) is list:
+        pass
+    else:
+        print("'label_list'にはList型を渡してください。")
+        return
+    top_num = yaml_dict.pop('top_num')
+    if type(top_num) is int:
+        pass
+    else:
+        print("'top_num'にはInt型を渡してください。")
+        return
+    header_rows = yaml_dict.pop('header_rows')
+    if type(header_rows) is int:
+        pass
+    else:
+        print("'header_rows'にはInt型を渡してください。")
+        return
+    header_cols = yaml_dict.pop('header_cols')
+    if type(header_cols) is int:
+        pass
+    else:
+        print("'header_cols'にはInt型を渡してください。")
+        return
+    train_data_rate = yaml_dict.pop('train_data_rate')
+    if type(train_data_rate) is float:
+        pass
+    else:
+        print("'train_data_rate'にはFloat型を渡してください。")
+        return
+    csv_output_path = yaml_dict.pop('csv_output_path')
+    
+    return yaml_dict, argo_path, minmax_values, image_type_num, output_dir, yama_flag, label_list, top_num, header_rows, header_cols, header_cols, train_data_rate, csv_output_path
 
 #全条件の画像を一つのフォルダにまとめる関数
-def summarize_images(yaml_dir, label_list, image_type_num):
+def summarize_images(yaml_dict, label_list, image_type_num):
     temp_dir_name = "temp_ori"
     temp_dir = "./" + temp_dir_name + "/"
     if temp_dir_name in os.listdir(path='./'):
@@ -298,24 +275,24 @@ def summarize_images(yaml_dir, label_list, image_type_num):
         if i is 0:
             os.makedirs(temp_dir)
         os.makedirs(temp_dir + label)
+    image_label_list = []
     once = True
     for label in label_list:
-        yaml_dict = load_yaml(yaml_dir)
-        if once:
-            #argoのパスを取得する
-            argo_path = yaml_dict.pop('argo_path')
-            image_label_list = []
+        temp_yaml_dict = copy.deepcopy(yaml_dict)
         for i in range(len(yaml_dict)):
             image_num = 0
             #適当に辞書の中身を取得する
-            popped = yaml_dict.popitem()
-            image_label = get_label_from_path(popped[1])
-            image_label_list.append(image_label)
-            images = load_file(popped[1] + label)
+            popped = temp_yaml_dict.popitem()
+            image_path = popped[1][0].pop('path')
+            if once:
+                image_label = get_label_from_path(image_path)
+                image_label_list.append(image_label)
+            images = load_file(image_path + label)
             for img in images:
                 cv2.imwrite(temp_dir + label + "/" + str(i+image_num).zfill(4) + image_label + '.png', img)
                 image_num += image_type_num
-    return temp_dir, image_label_list, argo_path
+        once = False
+    return temp_dir, image_label_list
 
 #最下層のディレクトリの名前をとってくる関数
 def get_label_from_path(path):
@@ -334,30 +311,51 @@ def get_label_from_path(path):
             else:
                 label += c
 
-def main(YAML_DIR=None, OUTPUT_DIR=None, IMAGE_TYPE_NUM=None, RESOLUTION=None, YAMA_FLAG=False):
-    if YAML_DIR is None:
-        YAML_DIR  = "./half_aligned/" #入力画像フォルダ(○○/OK or NG/image.pngみたいなディレクトリ構成)
-    if OUTPUT_DIR is None:
-        OUTPUT_DIR = "./hoge/" #最適重み画像の出力先(ラベルのフォルダも自分で作成する)
-    if IMAGE_TYPE_NUM is None:
-        IMAGE_TYPE_NUM = 4 #画像の種類数
-    if RESOLUTION is None:
-        RESOLUTION = 0.1 #重み値を全パターン受け取るときの分解能的なやつ、勿論小さいほうが精度は良くなるが時間がかかる(1を割り切る必要があるため,0.1 OR 0.2 OR 0.5 OR 1.0)
-    LABEL_LIST = ["OK","NG"] #ラベルのリスト
+#小数を与えると最大値が１の等差数列を作る関数
+def get_list_from_resolution(resolution, max_val=1.0):
+    weight_list = []
+    weight_list.append(0.0)
+    sum_num = resolution
+    
+    while sum_num <= max_val:
+        weight_list.append(sum_num)
+        sum_num += resolution
+    
+    return weight_list
 
-    SPLIT = 0.7 #(train:test = SPLIT:(1-SPLIT))
-    TOP_NUM = 1 #各重み画像csvからトップ${TOP_NUM}のevaluation valueを持ってくるか。gridサーチの範囲内にしないと学習した結果が全て消滅するので細心の注意を払って定義すること
-    HEADER_ROWS = 3 #今回使用するcsvファイルのheaderの行数は３
-    HEADER_COLS = 31 #今回使用するcsvファイルのheaderの列数は３
-    CSV_OUTPUT_DIR = "./" #出力されたevaluation_value.csvの評価値トップ${TOP_NUM}をまとめたcsvの出力先
+#重みのリストを返す関数
+def get_weight_list(yaml_dict, minmax_dict):
+    min_value = minmax_dict[0].pop('min_value')
+    max_value = minmax_dict[0].pop('max_value')
+    image_weight_list = []
+    weight_list = []
+    temp_yaml_dict = copy.deepcopy(yaml_dict)
+    for i in range(len(yaml_dict)):
+        popped = temp_yaml_dict.popitem()
+        popped[1][0].pop('path')
+        image_weight_list.append(convert_correct_num(get_list_from_resolution(popped[1][0].pop('resolution'))))
+        all_weight_pattern = list(itertools.product(*image_weight_list))
+    weight_list = []
+    for weight_pattern in all_weight_pattern:
+        if min_value <= float(format(sum(weight_pattern), '.1f')) <= max_value:
+            weight_list.append(weight_pattern) 
+    return weight_list
 
-    if YAMA_FLAG:
+def main(yaml_dir):
+
+    yaml_dict, argo_path, minmax_dict, image_type_num, output_dir, yama_flag, label_list, top_num, header_rows, header_cols, header_cols, train_data_rate, csv_output_dir = get_data_from_yaml(yaml_dir)
+
+    if yama_flag:
         input_weight = []
         WEIGHT_LIST = []
-        image_dir, image_label_list = summarize_images(YAML_DIR, LABEL_LIST, IMAGE_TYPE_NUM)[:2]
-        for i in range(IMAGE_TYPE_NUM):
+        image_dir, image_label_list = summarize_images(yaml_dict, label_list, image_type_num)
+        for i in range(image_type_num):
             input_weight.append(float(input("条件:{} の画像の重みを入力してください。\n".format(image_label_list[i]))))
-        make_average_image([np.array([float(w) for w in input_weight],dtype=np.float64)], IMAGE_TYPE_NUM, image_dir, OUTPUT_DIR, LABEL_LIST, YAMA_FLAG)
+        #各ラベルフォルダがなかった時は生成する
+        if not os.listdir(path=output_dir):
+            for label in label_list:
+                os.makedirs(output_dir + label)
+        make_average_image([np.array([float(w) for w in input_weight],dtype=np.float64)], image_type_num, image_dir, output_dir, label_list, yama_flag)
         shutil.rmtree(image_dir)
         return
 
@@ -371,30 +369,14 @@ def main(YAML_DIR=None, OUTPUT_DIR=None, IMAGE_TYPE_NUM=None, RESOLUTION=None, Y
         #[0.05, 0.05, 0.05, 0.85],
         ],dtype=np.float64)
     '''
+    WEIGHT_LIST = get_weight_list(yaml_dict, minmax_dict)
 
-    #get_all_X_weight_valuesは汎用性がないためもう使わない（計算部分も冗長な部分があるので0.4～0.5秒ほど余計にかかる。）
-    #やってることはget_weight_list関数と同じで上記関数の方が読みやすいので理解のため、一応残しておく
-    #WEIGHT_LIST = np.array(get_all_4_weight_values(IMAGE_TYPE_NUM,RESOLUTION))
-    WEIGHT_LIST = get_weight_list(RESOLUTION, IMAGE_TYPE_NUM)
-    print(WEIGHT_LIST)
-
-    #get_best_weight(WEIGHT_LIST, LABEL_LIST, IMAGE_TYPE_NUM, YAML_DIR, OUTPUT_DIR, SPLIT, HEADER_ROWS, HEADER_COLS, TOP_NUM, CSV_OUTPUT_DIR)
+    get_best_weight(argo_path, WEIGHT_LIST, label_list, image_type_num, yaml_dict, output_dir, train_data_rate, header_rows, header_cols, top_num, csv_output_dir)
 
 if __name__ == "__main__":
     params = sys.argv
-    if len(params) is 1:
-        main()
-    elif len(params) is 3:
-        main(params[1], params[2])
-    elif len(params) is 5:
-        main(params[1], params[2], int(params[3]), float(params[4]))
-    elif len(params) is 6:
-        if params[5] == "True":
-            main(params[1], params[2], int(params[3]), float(params[4]), True)
-        elif params[5] == "False":
-            main(params[1], params[2], int(params[3]), float(params[4]), False)
-        else:
-            print("無効な引数です。")
+    if len(params) is 2:
+        main(params[1])
     else:
-        print("無効な引数です。")
+        print("不正な引数です。")
     

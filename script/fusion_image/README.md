@@ -1,5 +1,3 @@
-# lumitrax-utilization
-Keyence-Lumitrax画像を合成するための最適重み
 
 ## get_best_weight.pyの使い方
 ### デフォルトのディレクトリ構成

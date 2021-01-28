@@ -1,0 +1,27 @@
+argo_path: .\0_POC\argo_workspace\
+Image_A: 
+- path: .\hoge\A\
+  resolution: 1.0
+Image_B:
+- path: .\hoge\B\
+  resolution: 1.0
+Image_C:
+- path: .\hoge\C\
+  resolution: 1.0
+Image_D:
+- path: .\hoge\D\
+  resolution: 1.0
+minmax_values:
+- min_value: 1.0
+  max_value: 1.0
+label_list:
+- OK
+- NG
+top_num: 1
+header_rows: 3
+header_cols: 31
+csv_output_path: .\
+best_image_output_path: .\out\
+image_type_num: 4
+train_data_rate: 0.7
+for_yama: False

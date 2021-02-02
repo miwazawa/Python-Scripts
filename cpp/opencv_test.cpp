@@ -47,10 +47,10 @@ string type2str(int type) {
 int main()
 {
  //   //グレスケで読み込む
-    Mat ref_img = imread(R"(C:\Users\Adacotech\Documents\GitHub\Python-Scripts\script\Landolt.png)", IMREAD_GRAYSCALE);
-    Mat tgt_img = imread(R"(C:\Users\Adacotech\Documents\GitHub\Python-Scripts\script\ShiftLandolt.png)", IMREAD_GRAYSCALE);
-    //Mat ref_img = imread(R"(C:\Users\Adacotech\Desktop\cpp_source\ref.png)", IMREAD_GRAYSCALE);
-    //Mat tgt_img = imread(R"(C:\Users\Adacotech\Desktop\cpp_source\tgt.png)", IMREAD_GRAYSCALE);
+    Mat ref_img = imread(R"(C:\Users\\Documents\GitHub\Python-Scripts\script\Landolt.png)", IMREAD_GRAYSCALE);
+    Mat tgt_img = imread(R"(C:\Users\\Documents\GitHub\Python-Scripts\script\ShiftLandolt.png)", IMREAD_GRAYSCALE);
+    //Mat ref_img = imread(R"(C:\Users\\Desktop\cpp_source\ref.png)", IMREAD_GRAYSCALE);
+    //Mat tgt_img = imread(R"(C:\Users\\Desktop\cpp_source\tgt.png)", IMREAD_GRAYSCALE);
     Mat aligned_img;
 
     //resize(ref_img, ref_img, cv::Size(), 10, 10);
@@ -110,7 +110,7 @@ int main()
 
    /* Mat a;
     cropGoodImagePartUsingKeyPoint(ref_img, a, 100, 100);
-    imwrite("C:\\Users\\Adacotech\\Desktop\\cpp_source\\tes.png", a);
+    imwrite("C:\\Users\\\\Desktop\\cpp_source\\tes.png", a);
 
     show(a);*/
 
